@@ -46,6 +46,7 @@ def register(request):
         )
         
         return response
+    
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -98,6 +99,49 @@ def logout(request):
     response.delete_cookie('refresh_token')
     
     return response
+
+
+@api_view(['POST'])
+@permission_classes([permissions.AllowAny])
+def refresh_token(request):
+    """Refresh token usando cookies httpOnly"""
+    refresh_token = request.COOKIES.get('refresh_token')
+    
+    if not refresh_token:
+        return Response({
+            'error': 'Refresh token não encontrado'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    try:
+        refresh = RefreshToken(refresh_token)
+        access_token = str(refresh.access_token)
+        
+        response = Response({
+            'message': 'Token renovado com sucesso!'
+        }, status=status.HTTP_200_OK)
+        
+        # Definir novo access token no cookie
+        response.set_cookie(
+            'access_token',
+            access_token,
+            max_age=60 * 5,  # 5 minutos
+            httponly=True,
+            secure=False,  # True em produção com HTTPS
+            samesite='Lax'
+        )
+        
+        return response
+        
+    except Exception as e:
+        response = Response({
+            'error': 'Token inválido ou expirado'
+        }, status=status.HTTP_401_UNAUTHORIZED)
+        
+        # Limpar cookies inválidos
+        response.delete_cookie('access_token')
+        response.delete_cookie('refresh_token')
+        
+        return response
 
 
 class ProfileView(generics.RetrieveUpdateAPIView):
