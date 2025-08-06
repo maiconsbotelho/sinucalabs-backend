@@ -21,14 +21,31 @@ def register(request):
     if serializer.is_valid():
         user = serializer.save()
         refresh = RefreshToken.for_user(user)
-        return Response({
+        
+        response = Response({
             'message': 'Usuário criado com sucesso!',
             'user': UserProfileSerializer(user).data,
-            'tokens': {
-                'refresh': str(refresh),
-                'access': str(refresh.access_token),
-            }
         }, status=status.HTTP_201_CREATED)
+        
+        # Definir cookies httpOnly
+        response.set_cookie(
+            'refresh_token',
+            str(refresh),
+            max_age=60 * 60 * 24 * 7,  # 7 dias
+            httponly=True,
+            secure=False,  # True em produção com HTTPS
+            samesite='Lax'
+        )
+        response.set_cookie(
+            'access_token',
+            str(refresh.access_token),
+            max_age=60 * 5,  # 5 minutos
+            httponly=True,
+            secure=False,  # True em produção com HTTPS
+            samesite='Lax'
+        )
+        
+        return response
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -40,15 +57,47 @@ def login(request):
     if serializer.is_valid():
         user = serializer.validated_data['user']
         refresh = RefreshToken.for_user(user)
-        return Response({
+        
+        response = Response({
             'message': 'Login realizado com sucesso!',
             'user': UserProfileSerializer(user).data,
-            'tokens': {
-                'refresh': str(refresh),
-                'access': str(refresh.access_token),
-            }
         }, status=status.HTTP_200_OK)
+        
+        # Definir cookies httpOnly
+        response.set_cookie(
+            'refresh_token',
+            str(refresh),
+            max_age=60 * 60 * 24 * 7,  # 7 dias
+            httponly=True,
+            secure=False,  # True em produção com HTTPS
+            samesite='Lax'
+        )
+        response.set_cookie(
+            'access_token',
+            str(refresh.access_token),
+            max_age=60 * 5,  # 5 minutos
+            httponly=True,
+            secure=False,  # True em produção com HTTPS
+            samesite='Lax'
+        )
+        
+        return response
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['POST'])
+@permission_classes([permissions.IsAuthenticated])
+def logout(request):
+    """Logout do usuário"""
+    response = Response({
+        'message': 'Logout realizado com sucesso!'
+    }, status=status.HTTP_200_OK)
+    
+    # Limpar cookies
+    response.delete_cookie('access_token')
+    response.delete_cookie('refresh_token')
+    
+    return response
 
 
 class ProfileView(generics.RetrieveUpdateAPIView):
